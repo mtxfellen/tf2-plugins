@@ -1,0 +1,15 @@
+# Source files
+*.sp text eol=lf diff=cpp
+
+# Configuration files
+*.cfg text eol=lf
+
+# Documentation files
+*.md text eol=lf diff=markdown
+*.txt text eol=lf
+
+# Linguist configuration
+*.sp linguist-detectable=true
+*.sp linguist-language=SourcePawn
+*.cfg linguist-detectable=false
+*.cfg linguist-language=Valve-Data-Format
