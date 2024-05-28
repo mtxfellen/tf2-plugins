@@ -1,3 +1,8 @@
+// tfmvm_nomapchange.sp
+//  Reloads the current mission once it is completed, preventing the map from changing.
+//   Compatiable with `SetEntPropString(tf_objective_resource, Prop_Send, "m_iszMvMPopfileName", "Trespasser (Expert)");`.
+//   Syncs the next mission loading dialog properly.
+
 #include <sourcemod>
 #include <tfmvm_stocks>
 
@@ -25,7 +30,7 @@ ConVar tf_mvm_victory_reset_time = null;
 
 // Plugin forwards
 public void OnPluginStart() {
-    sm_mvm_reloadtimer = CreateConVar("sm_mvm_reloadtimer", "11.0", 
+    sm_mvm_reloadtimer = CreateConVar("sm_mvm_reloadtimer", "11.0",
         "How long to wait after mission completion before reloading.", _, true, 0.0, true, 254.0);
     tf_mvm_disconnect_on_victory = FindConVar("tf_mvm_disconnect_on_victory");
     tf_mvm_victory_reset_time = FindConVar("tf_mvm_victory_reset_time");
