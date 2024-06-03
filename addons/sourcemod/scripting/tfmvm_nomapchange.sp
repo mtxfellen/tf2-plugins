@@ -4,6 +4,7 @@
 //   Syncs the next mission loading dialog properly.
 
 #include <sourcemod>
+#include <sdktools_functions>
 #include <tfmvm_stocks>
 
 #pragma newdecls required
@@ -13,7 +14,7 @@ public Plugin myinfo = {
     name = "[TF2-MvM] No Automated Map Change",
     author = "fellen",
     description = "Don't change the map after MvM mission completion.",
-    version = "1.3",
+    version = "1.4",
     url = "https://steamcommunity.com/id/mtxfellen/"
 };
 
@@ -21,6 +22,7 @@ public Plugin myinfo = {
 #define RELOAD_TIME_OVERRIDE 9999.0
 
 Handle g_hReloadMissionTimer = INVALID_HANDLE;
+Handle g_hHideWaveSummaryTimer = INVALID_HANDLE;
 bool g_bAllowKickMessage = false;
 bool g_bHookedReloadEvents = false;
 
@@ -57,6 +59,7 @@ public void OnMapStart() {
 }
 
 public void OnMapEnd() {
+    if (g_hHideWaveSummaryTimer != null) delete g_hHideWaveSummaryTimer;
     if (g_hReloadMissionTimer != null) delete g_hReloadMissionTimer;
 }
 
@@ -71,6 +74,7 @@ void Changed_tf_mvm_victory_reset_time(ConVar convar, const char[] oldValue, con
 
 // UserMessage hooks
 Action MVMVictory(UserMsg msg_id, Handle msg, const int[] players, int playersNum, bool reliable, bool init) {
+    g_hHideWaveSummaryTimer = CreateTimer(max(sm_mvm_reloadtimer.FloatValue, 0.0), Action_HideWaveSummary);
     g_hReloadMissionTimer = CreateTimer(sm_mvm_reloadtimer.FloatValue, Action_ReloadMission);
     return Plugin_Continue;
 }
@@ -85,10 +89,17 @@ Action MVMServerKickTimeUpdate(UserMsg msg_id, Handle msg, const int[] players, 
 
 // Event hooks
 void teamplay_round_start(Event event, const char[] name, bool dontBroadcast) {
+    if (g_hHideWaveSummaryTimer != null) delete g_hHideWaveSummaryTimer;
     if (g_hReloadMissionTimer != null) delete g_hReloadMissionTimer;
 }
 
 // Plugin functions
+Action Action_HideWaveSummary(Handle timer) {
+    SetEntProp(FindEntityByClassname(-1, "tf_objective_resource"), Prop_Send, "m_nMannVsMachineWaveCount", 0);
+    delete g_hHideWaveSummaryTimer;
+    return Plugin_Handled;
+}
+
 Action Action_ReloadMission(Handle timer) {
     TF2_ReloadMission();
     delete g_hReloadMissionTimer;
@@ -101,4 +112,8 @@ void FireFakeKickMsg(UserMsg msg_id, bool sent) {
     BfWrite bf = UserMessageToBfWrite(kickmsg);
     bf.WriteByte(RoundToNearest(sm_mvm_reloadtimer.FloatValue + 1.0));
     EndMessage();
+}
+
+float max(float a, float b) {
+    return a > b ? a : b;
 }
