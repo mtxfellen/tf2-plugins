@@ -8,7 +8,7 @@ Collection of various SourceMod plugins for TF2 servers (mostly for Mann vs. Mac
 
 Reloads the current mission once it is completed, preventing the map from changing.
 
-Syncs the "Loading next mission in # seconds..." dialog to correctly reflect the mission reload timer.
+Syncs the "Loading next mission in # seconds..." dialog to correctly reflect the mission reload timer, and properly closes the final wave summary panel before reloading the mission.
 
 Compatiable with methods that modify `m_iszMvMPopfileName` like in the VScript example provided, as the mission name is fetched directly with `ServerCommandEx()`.
 
