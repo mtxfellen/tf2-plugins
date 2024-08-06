@@ -59,6 +59,7 @@ public void OnMapStart() {
 }
 
 public void OnMapEnd() {
+    SetEntProp(FindEntityByClassname(-1, "tf_objective_resource"), Prop_Send, "m_nMannVsMachineWaveCount", 0);
     if (g_hHideWaveSummaryTimer != null) delete g_hHideWaveSummaryTimer;
     if (g_hReloadMissionTimer != null) delete g_hReloadMissionTimer;
 }
