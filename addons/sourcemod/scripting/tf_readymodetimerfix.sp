@@ -1,5 +1,9 @@
-#include <sourcemod>
+// tf_readymodetimerfix.sp
+//  Fixes the readymode timer not aborting when the only player readied disconnects from the
+//  server.
 #include <sdktools_functions>
+#include <sdktools_gamerules>
+#include <sourcemod>
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -15,9 +19,10 @@ public Plugin myinfo = {
 ConVar mp_tournament = null;
 ConVar mp_tournament_readymode = null;
 
-int tf_gamerules = -1;
 bool hooked_player_disconnect = false;
 bool late_loaded = false;
+
+// == GLOBAL CALLBACKS ==
 
 public void OnPluginStart() {
 	mp_tournament = FindConVar("mp_tournament");
@@ -27,15 +32,25 @@ public void OnPluginStart() {
 	mp_tournament_readymode.AddChangeHook(Updated_mp_tournament);
 
 	if (late_loaded) {
-		tf_gamerules = FindEntityByClassname(-1, "tf_gamerules");
+		// If we late load, we need to test our hook as the map may already be loaded.
 		TestAndHook();
 	}
 }
 
-void Updated_mp_tournament(ConVar convar, char[] oldValue, char[] newValue) {
+// Check if we should hook on map start.
+public void OnMapStart() {
 	TestAndHook();
 }
 
+public void OnMapEnd() {
+	// Unhook event on map end.
+	if (hooked_player_disconnect) {
+		UnhookEvent("player_disconnect", OnGameEvent_player_disconnect);
+		hooked_player_disconnect = false;
+	}
+}
+
+// Track if we late loaded to use in OnPluginStart().
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
 	if (late)
 		late_loaded = true;
@@ -43,22 +58,20 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	return APLRes_Success;
 }
 
-public void OnMapStart() {
-	tf_gamerules = FindEntityByClassname(-1, "tf_gamerules");
+// == END GLOBAL CALLBACKS ==
+
+// == PLUGIN CALLBACKS ==
+
+// Check if we should hook when our mp_tournament(_readymode) status updates.
+void Updated_mp_tournament(ConVar convar, char[] oldValue, char[] newValue) {
 	TestAndHook();
 }
 
-public void OnMapEnd() {
-	tf_gamerules = -1;
-
-	if (hooked_player_disconnect) {
-		UnhookEvent("player_disconnect", OnGameEvent_player_disconnect);
-		hooked_player_disconnect = false;
-	}
-}
-
+// player_disconnect event hook.
 Action OnGameEvent_player_disconnect(Event event, const char[] name, bool dontBroadcast) {
-	if (GetEntPropFloat(tf_gamerules, Prop_Send, "m_flRestartRoundTime") == -1.0)
+
+	// If the countdown timer is not active, do nothing.
+	if (GameRules_GetPropFloat("m_flRestartRoundTime") == -1.0)
 		return Plugin_Continue;
 
 	for (int i = 1; i <= MaxClients; ++i) {
@@ -66,19 +79,30 @@ Action OnGameEvent_player_disconnect(Event event, const char[] name, bool dontBr
 		if (!IsClientInGame(i))
 			continue;
 
-		if (IsFakeClient(i))
+		// Skip over the disconnecting player.
+		if (i == GetClientOfUserId(event.GetInt("userid")))
 			continue;
-		
-		if (view_as<bool>(GetEntProp(tf_gamerules, Prop_Send, "m_bPlayerReady", _, i)))
+
+		// If another player is ready, do nothing.
+		if (view_as<bool>(GameRules_GetProp("m_bPlayerReady", i)))
 			return Plugin_Continue;
 	}
 
-	SetEntPropFloat(tf_gamerules, Prop_Send, "m_flRestartRoundTime", -1.0);
+	// Stop the countdown timer.
+	GameRules_SetPropFloat("m_flRestartRoundTime", -1.0);
+
 	return Plugin_Continue;
 }
 
+// == END PLUGIN CALLBACKS ==
+
+
+/**
+ * Hooks player_disconnect if we're playing MvM or if mp_tournament_readymode 1 is set.
+ * Otherwise, unhook player_disconnect if we're not.
+ */
 void TestAndHook() {
-	if (view_as<bool>(GetEntProp(tf_gamerules, Prop_Send, "m_bPlayingMannVsMachine"))
+	if (view_as<bool>(GameRules_GetProp("m_bPlayingMannVsMachine"))
 	 || (mp_tournament.BoolValue && mp_tournament_readymode.BoolValue)
 	 && !hooked_player_disconnect)
 	{
