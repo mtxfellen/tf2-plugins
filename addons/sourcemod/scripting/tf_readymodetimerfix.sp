@@ -18,15 +18,18 @@ public Plugin myinfo = {
 
 ConVar mp_tournament = null;
 ConVar mp_tournament_readymode = null;
+ConVar mp_tournament_readymode_min = null;
 
 bool hooked_player_disconnect = false;
 bool late_loaded = false;
+bool playing_mvm = false;
 
 // == GLOBAL CALLBACKS ==
 
 public void OnPluginStart() {
 	mp_tournament = FindConVar("mp_tournament");
 	mp_tournament_readymode = FindConVar("mp_tournament_readymode");
+	mp_tournament_readymode_min = FindConVar("mp_tournament_readymode_min");
 
 	mp_tournament.AddChangeHook(Updated_mp_tournament);
 	mp_tournament_readymode.AddChangeHook(Updated_mp_tournament);
@@ -39,6 +42,7 @@ public void OnPluginStart() {
 
 // Check if we should hook on map start.
 public void OnMapStart() {
+	playing_mvm = view_as<bool>(GameRules_GetProp("m_bPlayingMannVsMachine"));
 	TestAndHook();
 }
 
@@ -69,22 +73,34 @@ void Updated_mp_tournament(ConVar convar, char[] oldValue, char[] newValue) {
 
 // player_disconnect event hook.
 Action OnGameEvent_player_disconnect(Event event, const char[] name, bool dontBroadcast) {
+	int leaver = GetClientOfUserId(event.GetInt("userid"));
 
-	// If the countdown timer is not active, do nothing.
-	if (GameRules_GetPropFloat("m_flRestartRoundTime") == -1.0)
+	// Do nothing if the player was not readied.
+	if (!view_as<bool>(GameRules_GetProp("m_bPlayerReady", _, leaver)))
 		return Plugin_Continue;
+	// Fix a bug where player ready state is preserved between sessions.
+	GameRules_SetProp("m_bPlayerReady", view_as<int>(false), _, leaver);
+
+	// If the countdown timer is not active or uninterruptable, do nothing.
+	if (playing_mvm) {
+		if (GameRules_GetPropFloat("m_flRestartRoundTime") <= 10.0 + GetGameTime())
+			return Plugin_Continue;
+	} else if (GameRules_GetPropFloat("m_flRestartRoundTime") <=
+		GetGameTime() + mp_tournament_readymode_min.IntValue) {
+		// IntValue is correct here; that's what the game uses.
+		return Plugin_Continue;
+	}
 
 	for (int i = 1; i <= MaxClients; ++i) {
-
 		if (!IsClientInGame(i))
 			continue;
 
 		// Skip over the disconnecting player.
-		if (i == GetClientOfUserId(event.GetInt("userid")))
+		if (i == leaver)
 			continue;
 
 		// If another player is ready, do nothing.
-		if (view_as<bool>(GameRules_GetProp("m_bPlayerReady", i)))
+		if (view_as<bool>(GameRules_GetProp("m_bPlayerReady", _, i)))
 			return Plugin_Continue;
 	}
 
@@ -102,8 +118,8 @@ Action OnGameEvent_player_disconnect(Event event, const char[] name, bool dontBr
  * Otherwise, unhook player_disconnect if we're not.
  */
 void TestAndHook() {
-	if (view_as<bool>(GameRules_GetProp("m_bPlayingMannVsMachine"))
-	 || (mp_tournament.BoolValue && mp_tournament_readymode.BoolValue)
+	if (playing_mvm ||
+	 (mp_tournament.BoolValue && mp_tournament_readymode.BoolValue)
 	 && !hooked_player_disconnect)
 	{
 		HookEvent("player_disconnect", OnGameEvent_player_disconnect);
